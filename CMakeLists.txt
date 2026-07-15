@@ -33,6 +33,15 @@ if(NOT EXISTS "${RAYLIB_INCLUDE_DIRS}/raylib.h")
 endif()
 message(STATUS "Using raylib from ${RAYLIB_INCLUDE_DIRS}")
 
+# --- pugixml (for OSM ingestion) --------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+    pugixml
+    GIT_REPOSITORY https://github.com/zeux/pugixml.git
+    GIT_TAG        v1.14
+)
+FetchContent_MakeAvailable(pugixml)
+
 # --- executable --------------------------------------------------------------
 add_executable(realistic_map
     src/main.cpp
@@ -44,6 +53,7 @@ add_executable(realistic_map
     src/Sidebar.cpp
     src/MiniMap.cpp
     src/RouteAnimator.cpp
+    src/OsmData.cpp
     src/Util.cpp
 )
 target_include_directories(realistic_map PRIVATE
@@ -51,7 +61,7 @@ target_include_directories(realistic_map PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 target_link_directories(realistic_map PRIVATE ${RAYLIB_LIBRARY_DIRS})
-target_link_libraries(realistic_map PRIVATE ${RAYLIB_LIBRARIES} m)
+target_link_libraries(realistic_map PRIVATE ${RAYLIB_LIBRARIES} pugixml m)
 
 # Copy the bundled city data file next to the binary so the app finds it
 # regardless of where the user runs it from.

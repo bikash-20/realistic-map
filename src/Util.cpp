@@ -53,6 +53,7 @@ float haversineKm(float ax, float ay, float bx, float by) {
               std::cos(lat1) * std::cos(lat2) *
               std::sin(dLon / 2) * std::sin(dLon / 2);
     float c = 2 * std::atan2(std::sqrt(h), std::sqrt(1 - h));
+    (void)c;
     (void)R;
     // For city-scale coords the planar km interpretation is also valid; we
     // return whichever heuristic the caller will treat as kilometres.

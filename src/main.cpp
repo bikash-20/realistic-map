@@ -13,6 +13,7 @@
 #include "MapView.h"
 #include "MiniMap.h"
 #include "NavSystem.h"
+#include "OsmData.h"
 #include "RouteAnimator.h"
 #include "Sidebar.h"
 #include "Util.h"
@@ -72,9 +73,29 @@ int main() {
                "realistic-map  -  Dijkstra / A* Navigation");
     SetTargetFPS(cfg.targetFps);
 
-    // --- load map ---
+    // --- load map ----------------------------------------------------
+    // Prefer a real OSM extract when present (e.g. data/sylhet.osm). Falls
+    // back to the hand-curated JSON city used for offline / first-run.
     NavSystem nav;
-    auto spec = loadCitySpec("data/city.json");
+    CitySpec spec;
+    bool loadedOsm = false;
+    {
+        const std::string osmPath = "data/sylhet.osm";
+        FILE* probe = std::fopen(osmPath.c_str(), "rb");
+        if (probe) {
+            std::fclose(probe);
+            // Sylhet, ~1.5 km^2 around Naiorpul. Spans the full lat/lon
+            // range present in data/sylhet.osm so every named intersection
+            // (e.g. নাইওরপুল পয়েন্ট) survives the bbox filter.
+            OsmBBox bbox{24.8910, 91.8630, 24.9000, 91.8800};
+            if (loadOsmSpec(osmPath, bbox, spec)) {
+                loadedOsm = true;
+            }
+        }
+    }
+    if (!loadedOsm) {
+        spec = loadCitySpec("data/city.json");
+    }
     for (auto& [n, x, y] : spec.nodes) nav.addNode(n, x, y);
     for (auto& [a, b, km, rc, ow, curve, ctrl] : spec.routes) {
         if (curve) {
@@ -124,8 +145,27 @@ int main() {
     }
 
     // --- start/end ---
-    std::string startNode = "Westfield";
-    std::string endNode   = "Airport";
+    // For OSM data, default to two named intersections so the user has a
+    // usable route on first launch. The hand-curated default city keeps
+    // its classic Westfield -> Airport pair.
+    std::string startNode, endNode;
+    if (loadedOsm) {
+        const std::string* firstNamed = nullptr;
+        const std::string* secondNamed = nullptr;
+        for (const auto& [n, x, y] : spec.nodes) {
+            if (n.rfind("OSM-", 0) == 0) continue; // skip synthetic IDs
+            if (!firstNamed)      firstNamed = &n;
+            else if (!secondNamed && n != *firstNamed) {
+                secondNamed = &n;
+                break;
+            }
+        }
+        startNode = firstNamed  ? *firstNamed  : std::string("Westfield");
+        endNode   = secondNamed ? *secondNamed : std::string("Airport");
+    } else {
+        startNode = "Westfield";
+        endNode   = "Airport";
+    }
 
     auto computeRoute = [&]() {
         auto path = aStar(nav, startNode, endNode, cfg.trafficEnabled);
