@@ -12,23 +12,26 @@ endif()
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 
 # --- raylib ------------------------------------------------------------------
-# Prefer pkg-config; fall back to manual Homebrew paths on Apple Silicon.
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND AND pkg-config --exists raylib)
-    pkg-config_get_variable(RAYLIB_INCLUDE_DIRS include)
-    pkg-config_get_variable(RAYLIB_LIBRARY_DIRS lib)
-    pkg-config_get_variable(RAYLIB_LIBRARIES raylib)
+# Try Homebrew first (Apple Silicon & Intel), then pkg-config, then a manual
+# fallback path so this works on distros without pkg-config.
+find_program(RAYLIB_BREW brew)
+if(RAYLIB_BREW)
+    execute_process(COMMAND brew --prefix raylib
+        OUTPUT_VARIABLE BREW_RAYLIB_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(RAYLIB_INCLUDE_DIRS "${BREW_RAYLIB_PREFIX}/include")
+    set(RAYLIB_LIBRARY_DIRS "${BREW_RAYLIB_PREFIX}/lib")
 else()
     set(RAYLIB_INCLUDE_DIRS "/opt/homebrew/include")
     set(RAYLIB_LIBRARY_DIRS "/opt/homebrew/lib")
-    set(RAYLIB_LIBRARIES "raylib")
 endif()
+set(RAYLIB_LIBRARIES "raylib")
 
 if(NOT EXISTS "${RAYLIB_INCLUDE_DIRS}/raylib.h")
     message(FATAL_ERROR
         "raylib.h not found at ${RAYLIB_INCLUDE_DIRS}.\n"
         "Install with: brew install raylib")
 endif()
+message(STATUS "Using raylib from ${RAYLIB_INCLUDE_DIRS}")
 
 # --- executable --------------------------------------------------------------
 add_executable(realistic_map
