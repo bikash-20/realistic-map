@@ -128,6 +128,7 @@ bool loadOsmSpec(const std::string& path, const OsmBBox& bbox,
         std::vector<long long> ids;
         int cls = -1;
         bool oneway = false;
+        std::string name; // human-readable way name (name:en / name)
     };
     std::vector<WayHit> ways;
 
@@ -140,6 +141,16 @@ bool loadOsmSpec(const std::string& path, const OsmBBox& bbox,
         hit.cls = cls;
         std::string ow = tagValue(w, "oneway");
         hit.oneway = (ow == "yes" || ow == "true" || ow == "1");
+        // Prefer ASCII ("name:en") for the renderer until Stage 5 brings a
+        // Bengali-capable TTF; fall back to native OSM name, then ref id.
+        hit.name = tagValue(w, "name:en");
+        if (hit.name.empty()) hit.name = tagValue(w, "name");
+        if (hit.name.empty()) {
+            char buf[24];
+            std::snprintf(buf, sizeof(buf), "way#%lld",
+                          w.attribute("id").as_llong(0));
+            hit.name = buf;
+        }
 
         for (auto nd : w.children("nd")) {
             long long ref = nd.attribute("ref").as_llong(0);
@@ -226,7 +237,8 @@ bool loadOsmSpec(const std::string& path, const OsmBBox& bbox,
                 w.cls,
                 w.oneway,
                 /*hasCurve=*/false,
-                Vector2{0.0f, 0.0f});
+                Vector2{0.0f, 0.0f},
+                w.name);
         }
     }
 

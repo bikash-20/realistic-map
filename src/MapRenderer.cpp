@@ -271,22 +271,40 @@ void drawNodes(const RenderState& s) {
         bool isEnd   = name == s.endNode;
         bool isHover = name == s.hoverNode;
         bool onPath  = std::find(s.path.begin(), s.path.end(), name) != s.path.end();
-
-        float r = isStart || isEnd ? 13.0f : onPath ? 10.0f : 8.0f;
+        bool isJct   = s.nav.isIntersection(name);
+        // Three-tier sizing:
+        //   start/end   -> 13 px (anchor pins, white core)
+        //   intersection or path-vertex -> 7 px (named crossing)
+        //   intermediate anchor (degree == 1) -> 3 px (smooth bead)
+        float r = isStart || isEnd ? 13.0f
+                  : (onPath || isJct) ? 7.0f : 3.0f;
         if (isHover) r += 1.5f;
 
         Color fill   = isStart ? p.start : isEnd ? p.end :
-                       onPath  ? p.onPath : p.node;
+                       onPath  ? p.onPath :
+                       isJct   ? p.node  : withAlpha(p.node, 180);
         Color stroke = isStart ? p.startLine : isEnd ? p.endLine :
                        onPath  ? p.onPathLine : p.nodeStr;
 
-        DrawCircleV({node.pos.x + 2, node.pos.y + 2}, r + 1,
-                    withAlpha(BLACK, 50));
+        // No drop-shadow for tiny intermediate dots; saves fillrate and
+        // keeps the polyline visually clean.
+        if (r >= 6.0f) {
+            DrawCircleV({node.pos.x + 2, node.pos.y + 2}, r + 1,
+                        withAlpha(BLACK, 50));
+        }
         DrawCircleV(node.pos, r, fill);
-        DrawCircleLines((int)node.pos.x, (int)node.pos.y, (int)r, stroke);
+        if (r >= 6.0f) {
+            DrawCircleLines((int)node.pos.x, (int)node.pos.y, (int)r, stroke);
+        }
         if (isStart || isEnd) DrawCircleV(node.pos, 4.0f, WHITE);
 
-        if (isStart || isEnd || isHover || onPath) {
+        // Labels only on start, end, hover, or named intersections on the
+        // active route. Anonymous intermediate anchors stay unlabeled so the
+        // map reads as a smooth polyline.
+        bool showLabel = isStart || isEnd || isHover ||
+                         (onPath && isJct &&
+                          name.rfind("OSM-", 0) != 0);
+        if (showLabel) {
             int fs = 11;
             int tw = MeasureText(name.c_str(), fs);
             DrawRectangle((int)node.pos.x - tw / 2 - 3,

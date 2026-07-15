@@ -19,6 +19,10 @@ struct Edge {
     // a straight line between the endpoints.
     bool        curved  = false;
     Vector2     ctrl{0, 0};      // only meaningful if curved == true
+    // Optional human-readable road name (e.g. "Zindabazar Road"). Empty
+    // when no name is known -- the render layer and turn-by-turn builder
+    // will fall back to "Unnamed Road" / a generic edge glyph.
+    std::string name;
 };
 
 struct Node {
@@ -48,7 +52,8 @@ public:
                   const std::string& b,
                   float distKm,
                   RoadClass rc = RoadClass::Minor,
-                  bool oneWay  = false);
+                  bool oneWay  = false,
+                  const std::string& roadName = "");
     // Curved variant: endpoint = (a,b), single Bezier control point (cx, cy)
     // expressed in the same logical coordinate space as Node::rawX/rawY.
     // Control point applies to one direction only (a->b); the reverse edge
@@ -58,19 +63,28 @@ public:
                        float distKm,
                        RoadClass rc,
                        bool oneWay,
-                       Vector2 ctrl);
+                       Vector2 ctrl,
+                       const std::string& roadName = "");
     // Symmetric curve: applies the same control point to both directions.
     void addRouteCurveSym(const std::string& a,
                           const std::string& b,
                           float distKm,
                           RoadClass rc,
-                          Vector2 ctrl);
+                          Vector2 ctrl,
+                          const std::string& roadName = "");
 
     // --- queries ---
     const Edge* findEdge(const std::string& a, const std::string& b) const;
     float       edgeDist(const std::string& a, const std::string& b) const;
     float       routeDist(const std::vector<std::string>& path) const;
     float       heuristic(const std::string& a, const std::string& b) const; // haversine in km
+    // Vertex classification: an intersection has >= 2 distinct neighbours in
+    // the undirected graph. Used by the renderer to suppress labels and
+    // shrink the dot for "intermediate" anchor points along an OSM way.
+    bool        isIntersection(const std::string& name) const;
+    // Friendly name for an edge (falls back to "Unnamed Road"). Same string
+    // returned for both directions because OSM ways are bidirectional.
+    std::string edgeName(const std::string& a, const std::string& b) const;
 
     // --- algorithms ---
     // Dijkstra; returns empty path if no route found.

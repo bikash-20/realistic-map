@@ -14,30 +14,55 @@ void NavSystem::addNode(const std::string& name, float rx, float ry) {
 }
 
 void NavSystem::addRoute(const std::string& a, const std::string& b,
-                         float distKm, RoadClass rc, bool oneWay) {
-    graph[a].push_back(Edge{b, distKm, rc, oneWay, false, {0, 0}});
+                         float distKm, RoadClass rc, bool oneWay,
+                         const std::string& roadName) {
+    graph[a].push_back(Edge{b, distKm, rc, oneWay, false, {0, 0}, roadName});
     if (!oneWay) {
-        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}});
+        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}, roadName});
     }
 }
 
 void NavSystem::addRouteCurve(const std::string& a, const std::string& b,
                               float distKm, RoadClass rc, bool oneWay,
-                              Vector2 ctrl)
+                              Vector2 ctrl, const std::string& roadName)
 {
-    graph[a].push_back(Edge{b, distKm, rc, oneWay, true, ctrl});
+    graph[a].push_back(Edge{b, distKm, rc, oneWay, true, ctrl, roadName});
     if (!oneWay) {
         // Reverse direction: keep straight. If a symmetric curve is wanted,
         // the caller uses addRouteCurveSym instead.
-        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}});
+        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}, roadName});
     }
 }
 
 void NavSystem::addRouteCurveSym(const std::string& a, const std::string& b,
-                                 float distKm, RoadClass rc, Vector2 ctrl)
+                                 float distKm, RoadClass rc, Vector2 ctrl,
+                                 const std::string& roadName)
 {
-    graph[a].push_back(Edge{b, distKm, rc, false, true, ctrl});
-    graph[b].push_back(Edge{a, distKm, rc, false, true, ctrl});
+    graph[a].push_back(Edge{b, distKm, rc, false, true, ctrl, roadName});
+    graph[b].push_back(Edge{a, distKm, rc, false, true, ctrl, roadName});
+}
+
+// An intersection is a vertex with at least two distinct neighbours in the
+// undirected sense. Terminal endpoints (named or not) count as intersections
+// too -- the renderer will draw a small dot for everything else so the road
+// network reads as smooth polylines rather than a chain of beads.
+bool NavSystem::isIntersection(const std::string& name) const {
+    auto it = graph.find(name);
+    if (it == graph.end()) return false;
+    std::unordered_set<std::string> neighbours;
+    for (const auto& e : it->second) neighbours.insert(e.dest);
+    return neighbours.size() >= 2;
+}
+
+// Friendly name for an edge a->b (or "Unnamed Road" when missing). Useful for
+// turn-by-turn narration and the legend. Returns the same string for both
+// directions because we only store one name per edge at addRoute time.
+std::string NavSystem::edgeName(const std::string& a,
+                               const std::string& b) const {
+    if (const Edge* e = findEdge(a, b)) {
+        if (!e->name.empty()) return e->name;
+    }
+    return "Unnamed Road";
 }
 
 const Edge* NavSystem::findEdge(const std::string& a,

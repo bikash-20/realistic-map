@@ -72,6 +72,7 @@ struct SidebarPalette {
     Color sectionTitle;    // "Turn-by-turn" / "Alternative" small caps
     Color stepLine;        // vertical line connecting route steps
     Color stepText;        // step name text
+    Color mutedText;       // secondary line under a step (distance + from→to)
     Color stepActive;      // background row highlight (current animator seg)
 
     Color altMeta;         // alternative "X km Y min" text
@@ -123,6 +124,7 @@ SidebarPalette daySidebar() {
         .sectionTitle    = {128,134,139,255},
         .stepLine        = {200,210,230,255},
         .stepText        = { 50, 50, 50,255},
+        .mutedText       = {120,128,138,255},
         .stepActive      = {232,240,253,255},
 
         .altMeta         = {120,144,156,255},
@@ -175,6 +177,7 @@ SidebarPalette nightSidebar() {
         .sectionTitle    = {150,154,160,255},
         .stepLine        = { 70, 90,120,255},
         .stepText        = {230,232,238,255},
+        .mutedText       = {150,160,172,255},
         .stepActive      = { 40, 56, 90,255},
 
         .altMeta         = {150,170,186,255},
@@ -386,7 +389,61 @@ void drawSidebar(Rectangle bounds,
     y += 38;
 
     // --- turn-by-turn ---
+    // Consecutive edges that share the same OSM way name are merged into a
+    // single navigation step so the user sees "Head NW on Zindabazar Road
+    // for 320 m" instead of 9 anonymous OSM-IDs strung together.
+    struct Step {
+        std::string from;        // first intersection on this segment
+        std::string to;          // last intersection (== from for last step)
+        std::string road;        // way name, "Unnamed Road" if missing
+        float       km = 0.0f;   // sum of merged edge lengths
+        bool        isLast = false;
+        bool        isFirst = false;
+        // Indices into state.path of the first/last vertex covered.
+        int         pathStart = 0;
+        int         pathEnd   = 0;
+    };
+    std::vector<Step> steps;
     if (state.path.size() >= 2) {
+        // Build the (road, length) list for consecutive edges.
+        struct Run {
+            std::string road;
+            float       km = 0.0f;
+            int         start = 0; // index in path[] of the run's start node
+            int         end   = 0; // index in path[] of the run's end node
+        };
+        std::vector<Run> runs;
+        for (std::size_t i = 1; i < state.path.size(); ++i) {
+            const std::string& a = state.path[i - 1];
+            const std::string& b = state.path[i];
+            std::string rn = nav.edgeName(a, b);
+            float km = nav.edgeDist(a, b);
+            if (!runs.empty() && runs.back().road == rn) {
+                runs.back().km   += km;
+                runs.back().end   = static_cast<int>(i);
+            } else {
+                runs.push_back(Run{rn, km,
+                                   static_cast<int>(i - 1),
+                                   static_cast<int>(i)});
+            }
+        }
+        // Convert runs to Steps, attaching endpoints from state.path.
+        steps.reserve(runs.size());
+        for (std::size_t i = 0; i < runs.size(); ++i) {
+            Step s;
+            s.from      = state.path[runs[i].start];
+            s.to        = state.path[runs[i].end];
+            s.road      = runs[i].road;
+            s.km        = runs[i].km;
+            s.pathStart = runs[i].start;
+            s.pathEnd   = runs[i].end;
+            s.isFirst   = (i == 0);
+            s.isLast    = (i + 1 == runs.size());
+            steps.push_back(std::move(s));
+        }
+    }
+
+    if (!steps.empty()) {
         DrawLine((int)bounds.x + 14, y,
                  (int)bounds.x + (int)bounds.width - 14, y,
                  p.sectionDivider);
@@ -395,13 +452,18 @@ void drawSidebar(Rectangle bounds,
         y += 22;
 
         int visibleSteps = std::min(
-            (int)state.path.size(),
+            (int)steps.size(),
             ((int)bounds.y + (int)bounds.height - y - 60) / 38);
-        for (int i = 0; i < visibleSteps; ++i) {
-            bool isS = (i == 0);
-            bool isE = (i == (int)state.path.size() - 1);
 
-            if (i == state.animator.seg() && (int)state.path.size() >= 2)
+        for (int i = 0; i < visibleSteps; ++i) {
+            const Step& step = steps[i];
+            bool isS = step.isFirst;
+            bool isE = step.isLast;
+
+            // Highlight the row that contains the animator's current seg.
+            bool active = state.animator.seg() >= step.pathStart &&
+                          state.animator.seg() <  step.pathEnd;
+            if (active)
                 DrawRectangle((int)bounds.x, y - 2, (int)bounds.width, 36,
                               p.stepActive);
 
@@ -416,10 +478,34 @@ void drawSidebar(Rectangle bounds,
                 DrawLine((int)bounds.x + 20, y + 21,
                          (int)bounds.x + 20, y + 38, p.stepLine);
 
-            DrawText(state.path[i].c_str(),
-                     (int)bounds.x + 34, y + 7, 13, p.stepText);
+            // Primary line: "Onto Road Name" or "Start on Road Name"
+            const char* lead = isS ? "Start on " : "Onto ";
+            char line1[96];
+            std::snprintf(line1, sizeof(line1), "%s%s",
+                          lead, step.road.c_str());
+            DrawText(line1, (int)bounds.x + 34, y + 2, 12, p.stepText);
+            // Secondary line: distance + endpoint intersection (or just
+            // distance on the final step).
+            char line2[96];
+            if (isE) {
+                std::snprintf(line2, sizeof(line2),
+                              "%.0f m \xC2\xB7 %s",
+                              step.km * 1000.0f, step.to.c_str());
+            } else {
+                std::snprintf(line2, sizeof(line2),
+                              "%.0f m \xC2\xB7 %s \xE2\x86\x92 %s",
+                              step.km * 1000.0f,
+                              step.from.c_str(), step.to.c_str());
+            }
+            DrawText(line2, (int)bounds.x + 34, y + 17,
+                     10, p.mutedText);
             y += 38;
         }
+    } else if (state.path.size() >= 2) {
+        // Defensive: should not happen since steps is built from path, but
+        // keeps the no-route state handled.
+        DrawText("No path found",
+                 (int)bounds.x + 14, y, 13, p.errorText);
     } else {
         DrawText("No path found",
                  (int)bounds.x + 14, y, 13, p.errorText);

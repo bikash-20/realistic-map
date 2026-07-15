@@ -97,36 +97,42 @@ int main() {
         spec = loadCitySpec("data/city.json");
     }
     for (auto& [n, x, y] : spec.nodes) nav.addNode(n, x, y);
-    for (auto& [a, b, km, rc, ow, curve, ctrl] : spec.routes) {
+    for (auto& [a, b, km, rc, ow, curve, ctrl, roadName] : spec.routes) {
         if (curve) {
             nav.addRouteCurveSym(a, b, km,
-                                 static_cast<RoadClass>(rc), ctrl);
+                                 static_cast<RoadClass>(rc), ctrl,
+                                 roadName);
         } else {
-            nav.addRoute(a, b, km, static_cast<RoadClass>(rc), ow);
+            nav.addRoute(a, b, km, static_cast<RoadClass>(rc), ow,
+                         roadName);
         }
     }
     if (nav.nodes.empty()) return 1;
 
     // --- decoration (parks / water / buildings) ---------------------------
-    // Reuse the same default city in the demo, regardless of loaded city.
+    // Only the JSON default city has a hand-curated decoration layout. OSM
+    // data carries no parks/water/blocks yet (Stage 5), so leaving them
+    // empty keeps the screen uncluttered.
     MapDecoration deco;
-    deco.parks = {
-        {30, 30,130, 90},{590, 30,110,110},{340,320, 90, 70},
-        {60,460,100, 80},{480,430,120, 90}
-    };
-    deco.waters = {
-        {610, 30,130,150},{0,590,210,110}
-    };
-    deco.blocks = {
-        {190, 70, 55, 45},{265, 60, 45, 55},
-        {440,140, 60, 40},{510,150, 45, 50},
-        {180,290, 50, 40},{235,300, 55, 35},
-        {400,270, 45, 45},{450,280, 55, 40},
-        {310,430, 60, 40},{375,440, 50, 45},
-        {190,550, 45, 40},{240,545, 55, 45},
-        {450,540, 60, 45},{510,535, 45, 50},
-        {560,220, 55, 45},{615,230, 50, 40}
-    };
+    if (!loadedOsm) {
+        deco.parks = {
+            {30, 30,130, 90},{590, 30,110,110},{340,320, 90, 70},
+            {60,460,100, 80},{480,430,120, 90}
+        };
+        deco.waters = {
+            {610, 30,130,150},{0,590,210,110}
+        };
+        deco.blocks = {
+            {190, 70, 55, 45},{265, 60, 45, 55},
+            {440,140, 60, 40},{510,150, 45, 50},
+            {180,290, 50, 40},{235,300, 55, 35},
+            {400,270, 45, 45},{450,280, 55, 40},
+            {310,430, 60, 40},{375,440, 50, 45},
+            {190,550, 45, 40},{240,545, 55, 45},
+            {450,540, 60, 45},{510,535, 45, 50},
+            {560,220, 55, 45},{615,230, 50, 40}
+        };
+    }
 
     // --- view ---
     MapView view;
