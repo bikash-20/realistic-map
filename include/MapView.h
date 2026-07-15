@@ -19,6 +19,8 @@ public:
 
     void panWorld(Vector2 deltaWorld);
     void zoomAtScreen(Vector2 anchor, float factor);
+    // Place the given world point at the given screen coords (e.g. center).
+    void centerOn(Vector2 world, float screenX, float screenY);
 
     bool containsScreenPoint(Vector2 p, float screenW, float screenH) const;
 
@@ -29,11 +31,14 @@ public:
     float offsetX() const { return m_offX; }
     float offsetY() const { return m_offY; }
     float zoom() const { return m_zoom; }
+    float screenW() const { return m_screenW; }
+    float screenH() const { return m_screenH; }
 
 private:
     float m_minX = 0, m_minY = 0, m_scale = 1.0f;
     float m_offX = 0, m_offY = 0;
     float m_zoom = 1.0f;
+    float m_screenW = 0, m_screenH = 0;
 
     float m_minZoom = 0.6f, m_maxZoom = 4.0f;
 

@@ -91,12 +91,17 @@ CitySpec loadCitySpec(const std::string& path) {
         std::string dk   = pluck(o, "km");
         std::string cls  = pluck(o, "class");
         std::string ow   = pluck(o, "oneway");
+        std::string cxs  = pluck(o, "cx");
+        std::string cys  = pluck(o, "cy");
         float km = 0; int clsI = 2; int owI = 0;
+        float cx = 0, cy = 0;
+        bool hasCurve = tryParseFloat(cxs, cx) && tryParseFloat(cys, cy);
         if (!tryParseFloat(dk, km)) continue;
         try { clsI = std::stoi(cls); } catch (...) { clsI = 2; }
         try { owI  = std::stoi(ow);  } catch (...) { owI  = 0; }
         if (from.empty() || to.empty()) continue;
-        spec.routes.emplace_back(from, to, km, clsI, owI != 0);
+        spec.routes.emplace_back(from, to, km, clsI, owI != 0,
+                                 hasCurve, Vector2{cx, cy});
     }
 
     if (spec.nodes.empty()) return defaultCitySpec();
@@ -122,38 +127,43 @@ CitySpec defaultCitySpec() {
         {"Beachfront", 260,650},
         {"Terminal",   530,640},
     };
+    // routes: from, to, km, class, oneway, hasCurve, ctrl{cx,cy}.
+    // A handful of scenic arterials (Riverside, Bayfront, etc.) get a single
+    // quadratic-bezier control point so the renderer draws them curved.
+    // The control point sits perpendicular to the segment, ~midway off-axis.
+    auto P = [](float x, float y) { return Vector2{x, y}; };
     s.routes = {
-        {"Northgate","Westfield",8, 1,0},
-        {"Northgate","Uptown",   7, 1,0},
-        {"Northgate","Central",  9, 0,0},
-        {"Westfield","Riverside",6, 1,0},
-        {"Westfield","Harbor",  10, 2,0},
-        {"Uptown",   "Eastpark", 5, 1,0},
-        {"Uptown",   "Central",  6, 1,0},
-        {"Riverside","Central",  5, 1,0},
-        {"Riverside","Harbor",   7, 2,0},
-        {"Riverside","Midtown",  6, 2,0},
-        {"Central",  "Eastpark", 6, 0,0},
-        {"Central",  "Midtown",  5, 1,0},
-        {"Central",  "Commerce", 7, 1,0},
-        {"Eastpark", "Lakeside", 4, 2,0},
-        {"Eastpark", "Commerce", 6, 1,0},
-        {"Harbor",   "Southport",6, 2,0},
-        {"Harbor",   "Midtown",  5, 2,0},
-        {"Midtown",  "Commerce", 4, 1,0},
-        {"Midtown",  "Southport",7, 2,0},
-        {"Midtown",  "Downtown", 5, 1,0},
-        {"Commerce", "Lakeside", 5, 1,0},
-        {"Commerce", "Downtown", 6, 1,0},
-        {"Commerce", "Airport",  7, 0,0},
-        {"Lakeside", "Airport",  6, 1,0},
-        {"Southport","Downtown", 6, 2,0},
-        {"Southport","Beachfront",5, 2,0},
-        {"Downtown", "Airport",  7, 0,0},
-        {"Downtown", "Beachfront",6, 2,0},
-        {"Downtown", "Terminal", 5, 1,0},
-        {"Airport",  "Terminal", 6, 0,0},
-        {"Beachfront","Terminal",7, 2,0},
+        {"Northgate","Uptown",   7, 1, false, true,  P(420, 30) },
+        {"Northgate","Westfield",8, 1, false, true,  P(190, 80) },
+        {"Uptown",   "Eastpark", 5, 1, false, false, P(0, 0) },
+        {"Uptown",   "Central",  6, 1, false, true,  P(460, 220)},
+        {"Westfield","Riverside",6, 1, false, true,  P( 70, 230)},
+        {"Westfield","Harbor",  10, 2, false, true,  P( 40, 290)},
+        {"Riverside","Central",  5, 1, false, true,  P(280, 230)},
+        {"Riverside","Harbor",   7, 2, false, true,  P(110, 380)},
+        {"Riverside","Midtown",  6, 2, false, true,  P(260, 360)},
+        {"Central",  "Northgate",9, 0, false, false, P(0, 0) },
+        {"Central",  "Eastpark", 6, 0, false, false, P(0, 0) },
+        {"Central",  "Midtown",  5, 1, false, false, P(0, 0) },
+        {"Central",  "Commerce", 7, 1, false, false, P(0, 0) },
+        {"Eastpark", "Lakeside", 4, 2, false, true,  P(680, 270)},
+        {"Eastpark", "Commerce", 6, 1, false, false, P(0, 0) },
+        {"Harbor",   "Southport",6, 2, false, true,  P(110, 500)},
+        {"Harbor",   "Midtown",  5, 2, false, true,  P(220, 410)},
+        {"Midtown",  "Commerce", 4, 1, false, true,  P(420, 410)},
+        {"Midtown",  "Southport",7, 2, false, false, P(0, 0) },
+        {"Midtown",  "Downtown", 5, 1, false, false, P(0, 0) },
+        {"Commerce", "Lakeside", 5, 1, false, true,  P(620, 410)},
+        {"Commerce", "Downtown", 6, 1, false, false, P(0, 0) },
+        {"Commerce", "Airport",  7, 0, false, false, P(0, 0) },
+        {"Lakeside", "Airport",  6, 1, false, true,  P(700, 470)},
+        {"Southport","Downtown", 6, 2, false, false, P(0, 0) },
+        {"Southport","Beachfront",5,2, false, true,  P(220, 600)},
+        {"Downtown", "Airport",  7, 0, false, false, P(0, 0) },
+        {"Downtown", "Beachfront",6, 2, false, true,  P(330, 590)},
+        {"Downtown", "Terminal", 5, 1, false, false, P(0, 0) },
+        {"Airport",  "Terminal", 6, 0, false, false, P(0, 0) },
+        {"Beachfront","Terminal",7, 2, false, true,  P(420, 680)},
     };
     return s;
 }

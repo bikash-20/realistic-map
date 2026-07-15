@@ -46,6 +46,7 @@ struct SidebarIO {
 
 // Draws the sidebar. Mutates state (search buffer, toggles) and fills io.
 void drawSidebar(Rectangle bounds,
+                 const NavSystem& nav,
                  SidebarState& state,
                  SidebarIO& io,
                  const UiCallbacks& cb);

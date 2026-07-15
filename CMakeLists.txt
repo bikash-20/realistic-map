@@ -42,6 +42,7 @@ add_executable(realistic_map
     src/MapView.cpp
     src/MapRenderer.cpp
     src/Sidebar.cpp
+    src/MiniMap.cpp
     src/RouteAnimator.cpp
     src/Util.cpp
 )

@@ -117,6 +117,23 @@ void roadClassStyle(RoadClass rc, const Palette& p,
     return Vector2{-dir.y * k, dir.x * k};
 }
 
+// Quadratic Bezier sample point: B(t) = (1-t)^2 a + 2(1-t)t ctrl + t^2 b.
+static Vector2 quadBezierPoint(Vector2 a, Vector2 ctrl, Vector2 b, float t) {
+    float u = 1.0f - t;
+    return Vector2{
+        u*u * a.x + 2*u*t * ctrl.x + t*t * b.x,
+        u*u * a.y + 2*u*t * ctrl.y + t*t * b.y
+    };
+}
+
+// Quadratic Bezier first derivative: B'(t) = 2(1-t)(ctrl-a) + 2t(b-ctrl).
+static Vector2 quadBezierTangent(Vector2 a, Vector2 ctrl, Vector2 b, float t) {
+    return Vector2{
+        2*(1-t)*(ctrl.x - a.x) + 2*t*(b.x - ctrl.x),
+        2*(1-t)*(ctrl.y - a.y) + 2*t*(b.y - ctrl.y)
+    };
+}
+
 } // namespace
 
 void drawDecorations(const RenderState& s) {
@@ -161,22 +178,44 @@ void drawRoadNetwork(const RenderState& s) {
             Vector2 b = s.nav.nodes.at(e.dest).pos;
             Color outline, fill; float thick;
             roadClassStyle(e.roadClass, p, outline, fill, thick);
-            // Shadow stripe (slightly wider dark stroke under the road)
-            DrawLineEx(a, b, thick + 2.0f, withAlpha(p.roadShadow, 180));
-            DrawLineEx(a, b, thick,         fill);
-            DrawLineEx(a, b, 1.2f,          withAlpha(outline, 160));
 
-            // Direction chevron — small arrow 60% along the segment.
-            Vector2 dir = Vec2Norm({b.x - a.x, b.y - a.y});
-            float tpos = 0.6f;
-            Vector2 tip{a.x + dir.x * (b.x - a.x) * tpos + dir.x * 6,
-                        a.y + dir.y * (b.y - a.y) * tpos + dir.y * 6};
-            Vector2 base{a.x + dir.x * (b.x - a.x) * tpos,
-                         a.y + dir.y * (b.y - a.y) * tpos};
-            Vector2 perp{-dir.y, dir.x};
-            Vector2 l1{base.x + perp.x * 4, base.y + perp.y * 4};
-            Vector2 r1{base.x - perp.x * 4, base.y - perp.y * 4};
-            DrawTriangle(tip, l1, r1, withAlpha(outline, 200));
+            if (e.curved) {
+                Vector2 ctrl = e.ctrl;
+                // shadow stripe / fill / hairline outline along the curve
+                DrawQuadBezier(a, ctrl, b, thick + 2.0f,
+                               withAlpha(p.roadShadow, 180), 28);
+                DrawQuadBezier(a, ctrl, b, thick, fill, 28);
+                DrawQuadBezier(a, ctrl, b, 1.2f,
+                               withAlpha(outline, 160), 28);
+
+                // Direction chevron at t=0.6 along the curve.
+                float tpos = 0.6f;
+                Vector2 bp = quadBezierPoint(a, ctrl, b, tpos);
+                Vector2 bt = quadBezierTangent(a, ctrl, b, tpos);
+                Vector2 dir = Vec2Norm(bt);
+                Vector2 tip{bp.x + dir.x * 6, bp.y + dir.y * 6};
+                Vector2 perp{-dir.y, dir.x};
+                Vector2 l1{bp.x + perp.x * 4, bp.y + perp.y * 4};
+                Vector2 r1{bp.x - perp.x * 4, bp.y - perp.y * 4};
+                DrawTriangle(tip, l1, r1, withAlpha(outline, 200));
+            } else {
+                // Shadow stripe (slightly wider dark stroke under the road)
+                DrawLineEx(a, b, thick + 2.0f, withAlpha(p.roadShadow, 180));
+                DrawLineEx(a, b, thick,         fill);
+                DrawLineEx(a, b, 1.2f,          withAlpha(outline, 160));
+
+                // Direction chevron — small arrow 60% along the segment.
+                Vector2 dir = Vec2Norm({b.x - a.x, b.y - a.y});
+                float tpos = 0.6f;
+                Vector2 tip{a.x + dir.x * (b.x - a.x) * tpos + dir.x * 6,
+                            a.y + dir.y * (b.y - a.y) * tpos + dir.y * 6};
+                Vector2 base{a.x + dir.x * (b.x - a.x) * tpos,
+                             a.y + dir.y * (b.y - a.y) * tpos};
+                Vector2 perp{-dir.y, dir.x};
+                Vector2 l1{base.x + perp.x * 4, base.y + perp.y * 4};
+                Vector2 r1{base.x - perp.x * 4, base.y - perp.y * 4};
+                DrawTriangle(tip, l1, r1, withAlpha(outline, 200));
+            }
         }
     }
 }

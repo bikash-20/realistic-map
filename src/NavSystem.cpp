@@ -15,10 +15,29 @@ void NavSystem::addNode(const std::string& name, float rx, float ry) {
 
 void NavSystem::addRoute(const std::string& a, const std::string& b,
                          float distKm, RoadClass rc, bool oneWay) {
-    graph[a].push_back(Edge{b, distKm, rc, oneWay});
+    graph[a].push_back(Edge{b, distKm, rc, oneWay, false, {0, 0}});
     if (!oneWay) {
-        graph[b].push_back(Edge{a, distKm, rc, false});
+        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}});
     }
+}
+
+void NavSystem::addRouteCurve(const std::string& a, const std::string& b,
+                              float distKm, RoadClass rc, bool oneWay,
+                              Vector2 ctrl)
+{
+    graph[a].push_back(Edge{b, distKm, rc, oneWay, true, ctrl});
+    if (!oneWay) {
+        // Reverse direction: keep straight. If a symmetric curve is wanted,
+        // the caller uses addRouteCurveSym instead.
+        graph[b].push_back(Edge{a, distKm, rc, false, false, {0, 0}});
+    }
+}
+
+void NavSystem::addRouteCurveSym(const std::string& a, const std::string& b,
+                                 float distKm, RoadClass rc, Vector2 ctrl)
+{
+    graph[a].push_back(Edge{b, distKm, rc, false, true, ctrl});
+    graph[b].push_back(Edge{a, distKm, rc, false, true, ctrl});
 }
 
 const Edge* NavSystem::findEdge(const std::string& a,

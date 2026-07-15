@@ -14,6 +14,11 @@ struct Edge {
     float       distKm;          // physical length in km
     RoadClass   roadClass;
     bool        oneWay;          // true => only a -> b
+    // Optional single control point for a quadratic Bezier curve.
+    // Logical coords (same space as Node::rawX/rawY). curved == false means
+    // a straight line between the endpoints.
+    bool        curved  = false;
+    Vector2     ctrl{0, 0};      // only meaningful if curved == true
 };
 
 struct Node {
@@ -44,6 +49,22 @@ public:
                   float distKm,
                   RoadClass rc = RoadClass::Minor,
                   bool oneWay  = false);
+    // Curved variant: endpoint = (a,b), single Bezier control point (cx, cy)
+    // expressed in the same logical coordinate space as Node::rawX/rawY.
+    // Control point applies to one direction only (a->b); the reverse edge
+    // (b->a) keeps its own control point if the caller provides one.
+    void addRouteCurve(const std::string& a,
+                       const std::string& b,
+                       float distKm,
+                       RoadClass rc,
+                       bool oneWay,
+                       Vector2 ctrl);
+    // Symmetric curve: applies the same control point to both directions.
+    void addRouteCurveSym(const std::string& a,
+                          const std::string& b,
+                          float distKm,
+                          RoadClass rc,
+                          Vector2 ctrl);
 
     // --- queries ---
     const Edge* findEdge(const std::string& a, const std::string& b) const;

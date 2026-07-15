@@ -11,6 +11,7 @@
 #include "MapData.h"
 #include "MapRenderer.h"
 #include "MapView.h"
+#include "MiniMap.h"
 #include "NavSystem.h"
 #include "RouteAnimator.h"
 #include "Sidebar.h"
@@ -75,8 +76,13 @@ int main() {
     NavSystem nav;
     auto spec = loadCitySpec("data/city.json");
     for (auto& [n, x, y] : spec.nodes) nav.addNode(n, x, y);
-    for (auto& [a, b, km, rc, ow] : spec.routes) {
-        nav.addRoute(a, b, km, static_cast<RoadClass>(rc), ow);
+    for (auto& [a, b, km, rc, ow, curve, ctrl] : spec.routes) {
+        if (curve) {
+            nav.addRouteCurveSym(a, b, km,
+                                 static_cast<RoadClass>(rc), ctrl);
+        } else {
+            nav.addRoute(a, b, km, static_cast<RoadClass>(rc), ow);
+        }
     }
     if (nav.nodes.empty()) return 1;
 
@@ -107,6 +113,14 @@ int main() {
                cfg.padL, cfg.padR, cfg.padT, cfg.padB);
     for (auto& [k, n] : nav.nodes) {
         n.pos = view.worldToScreen({n.rawX, n.rawY});
+    }
+    // Promote Bezier control points (still in raw coords) into screen space
+    // so the renderer can call DrawQuadBezier directly.
+    for (auto& [src, edges] : nav.graph) {
+        (void)src;
+        for (auto& e : edges) {
+            if (e.curved) e.ctrl = view.worldToScreen(e.ctrl);
+        }
     }
 
     // --- start/end ---
@@ -317,11 +331,51 @@ int main() {
 
         // --- sidebar ---
         drawSidebar({0.0f, 0.0f, cfg.sidebarW, (float)cfg.windowH},
-                    sbState, io, cb);
+                    nav, sbState, io, cb);
+
+        // --- minimap ---
+        Rectangle mmRect{
+            (float)(cfg.windowW - 48 - 220 - 12),
+            (float)(cfg.windowH - 152),
+            220.0f, 140.0f
+        };
+        drawMiniMap(mmRect, rs);
+
+        // Click anywhere inside the minimap to recenter the main view on
+        // that world point.
+        if (CheckCollisionPointRec(GetMousePosition(), mmRect) &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            Vector2 mp = GetMousePosition();
+            // Convert the click from minimap pixel coords back to world
+            // coords using the same transform the minimap itself uses.
+            float mnx = 1e9f, mxx = -1e9f, mny = 1e9f, mxy = -1e9f;
+            for (const auto& [k, n] : nav.nodes) {
+                mnx = std::min(mnx, n.rawX);
+                mxx = std::max(mxx, n.rawX);
+                mny = std::min(mny, n.rawY);
+                mxy = std::max(mxy, n.rawY);
+            }
+            float w = std::max(1.0f, mxx - mnx);
+            float h = std::max(1.0f, mxy - mny);
+            float pad = 10.0f;
+            float s = std::min((mmRect.width  - 2 * pad) / w,
+                               (mmRect.height - 2 * pad) / h);
+            float usedW = w * s, usedH = h * s;
+            float ox = mmRect.x + (mmRect.width  - usedW) * 0.5f - mnx * s;
+            float oy = mmRect.y + (mmRect.height - usedH) * 0.5f - mny * s;
+            float wx = (mp.x - ox) / s;
+            float wy = (mp.y - oy) / s;
+            view.centerOn({wx, wy},
+                          (float)cfg.windowW * 0.5f,
+                          (float)cfg.windowH * 0.5f);
+        }
+
+        // --- hover tooltip (after nodes so it sits on top) ---
+        drawHoverTooltip(rs);
 
         // --- zoom controls ---
         drawZoomButtons({(float)(cfg.windowW - 48), (float)(cfg.windowH - 100), 36, 80}, view);
-
         EndDrawing();
     }
 

@@ -1,13 +1,18 @@
 #pragma once
 #include <string>
+#include <tuple>
 #include <vector>
+
+#include "raylib.h"
 
 namespace rm {
 
 struct CitySpec {
     std::vector<std::tuple<std::string, float, float>> nodes;
-    std::vector<std::tuple<std::string, std::string, float, int, bool>> routes;
-    // route: from, to, distKm, roadClass (0 Highway, 1 Major, 2 Minor, 3 Local), oneWay
+    // route: from, to, distKm, roadClass (0 Highway, 1 Major, 2 Minor, 3 Local),
+    //        oneWay, curve (cx,cy). If hasCurve is false the route is straight.
+    std::vector<std::tuple<std::string, std::string, float, int, bool,
+                           bool, Vector2>> routes;
 };
 
 // Tries to load a JSON city file. On any failure, returns the bundled default

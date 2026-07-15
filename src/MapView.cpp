@@ -23,6 +23,8 @@ void MapView::reset(const NavSystem& nav, float screenW, float screenH,
     m_minX = mnx;
     m_minY = mny;
     m_zoom = 1.0f;
+    m_screenW = screenW;
+    m_screenH = screenH;
     m_dragging = false;
 }
 
@@ -63,6 +65,11 @@ Vector2 MapView::worldToScreen(Vector2 w) const {
 void MapView::panWorld(Vector2 deltaWorld) {
     m_offX -= deltaWorld.x * m_scale * m_zoom;
     m_offY -= deltaWorld.y * m_scale * m_zoom;
+}
+
+void MapView::centerOn(Vector2 world, float screenX, float screenY) {
+    m_offX = screenX - (world.x - m_minX) * m_scale * m_zoom;
+    m_offY = screenY - (world.y - m_minY) * m_scale * m_zoom;
 }
 
 void MapView::zoomAtScreen(Vector2 anchor, float factor) {
